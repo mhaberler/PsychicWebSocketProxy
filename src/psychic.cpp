@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <ESPmDNS.h>
 #include <WiFi.h>
+#include "Esp.h"
 
 #include <PicoMQTT.h>
 #include <PsychicHttp.h>
@@ -78,6 +79,18 @@ void setup() {
     mqtt.begin();
 }
 
+uint32_t last, counter;
+
 void loop() {
     mqtt.loop();
+    if (millis() - last > 1000) {
+        last = millis();
+        char buf[100];
+        itoa(counter++, buf, 10);
+        mqtt.publish("counter", buf );
+        itoa(ESP.getFreeHeap(), buf, 10);
+        mqtt.publish("freeheap", buf );
+        itoa(ESP.getPsramSize() - ESP.getFreePsram(), buf, 10);
+        mqtt.publish("psramusage", buf );
+    }
 }
