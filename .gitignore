@@ -3,3 +3,4 @@
 *.tar.gz
 /examples.build
 /config.h
+.vscode
