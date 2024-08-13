@@ -72,9 +72,9 @@ void setup() {
     }
     Serial.printf("WiFi connected, IP: %s\n", WiFi.localIP().toString().c_str());
 
-#ifdef HTTPS
     // Setup server
     server.config.max_uri_handlers = 20;
+#ifdef HTTPS
     {
         LittleFS.begin();
         File fp = LittleFS.open("/server.crt");
