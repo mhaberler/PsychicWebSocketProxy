@@ -2,20 +2,25 @@
 #include <Arduino.h>
 #include <WiFi.h>
 
+#include <LittleFS.h>
+
 #include <PicoMQTT.h>
 #include <PsychicHttp.h>
+#ifdef HTTPS
+#include <PsychicHttpsServer.h>
+#endif
 #include <PsychicWebSocketProxy.h>
 
 #if __has_include("config.h")
-#include "config.h"
+    #include "config.h"
 #endif
 
 #ifndef WIFI_SSID
-#define WIFI_SSID "WiFi SSID"
+    #define WIFI_SSID "WiFi SSID"
 #endif
 
 #ifndef WIFI_PASSWORD
-#define WIFI_PASSWORD "password"
+    #define WIFI_PASSWORD "password"
 #endif
 
 // Define a PsychicWebSocketProxy::Server object, which will connect
@@ -24,7 +29,7 @@
 // The constructor accepts a function parameter which will be used as
 // a proxy object factory.  Proxy class differ in how the received
 // data is buffered.  See *_proxy.h headers for more details on each.
-PsychicWebSocketProxy::Server websocket_handler([]{ return new PsychicWebSocketProxy::DynamicBufferProxy(); });
+PsychicWebSocketProxy::Server websocket_handler([] { return new PsychicWebSocketProxy::DynamicBufferProxy(); });
 
 // Alternative examples:
 //   PsychicWebSocketProxy::Server websocket_handler([]{ return new PsychicWebSocketProxy::CircularBufferProxy(512, 10 * 1000, ESP_OK); });
@@ -46,7 +51,13 @@ PsychicWebSocketProxy::Server websocket_handler([]{ return new PsychicWebSocketP
 PicoMQTT::Server mqtt(websocket_handler);
 
 // Setup a PsychicHttpServer as usual
+#ifdef HTTPS
+PsychicHttpsServer server;
+#else
 PsychicHttpServer server;
+#endif
+String server_cert;
+String server_key;
 
 void setup() {
     // Setup serial
@@ -56,12 +67,32 @@ void setup() {
     Serial.printf("Connecting to WiFi %s\n", WIFI_SSID);
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    while (WiFi.status() != WL_CONNECTED) { delay(1000); }
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+    }
     Serial.printf("WiFi connected, IP: %s\n", WiFi.localIP().toString().c_str());
 
+#ifdef HTTPS
     // Setup server
     server.config.max_uri_handlers = 20;
+    {
+        LittleFS.begin();
+        File fp = LittleFS.open("/server.crt");
+        if (fp) {
+            server_cert = fp.readString();
+            fp.close();
+        }
+
+        fp = LittleFS.open("/server.key");
+        if (fp) {
+            server_key = fp.readString();
+            fp.close();
+        }
+    }
+    server.listen(443, server_cert.c_str(), server_key.c_str());
+#else
     server.listen(80);
+#endif
 
     // bind the PsychicWebSocketProxy::Server to an url like a websocket handler
     server.on("/mqtt", &websocket_handler);
